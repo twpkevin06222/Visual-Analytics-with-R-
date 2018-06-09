@@ -2,6 +2,7 @@ library(shiny)
 library(shinydashboard)
 library(ggplot2)
 library(readr)
+library(data.table)
 library(DT)
 library(formattable)
 library(plyr)
@@ -39,10 +40,15 @@ ui <- dashboardPage(
         sliderInput("k02Input", "Number of cluster (works only if choice of k is manual):",min=1, max=20,
                     value = c(10)),
         plotOutput("s_plot")
-      ),
+      )
+    ),
+    fluidRow(
       box(
         title='Table with respect to Cluster', status = "primary", solidHeader = TRUE,
-        dataTableOutput('clusterTable'),
+        dataTableOutput('clusterTable')
+      ),
+      box(
+        title='Plot with respect to Cluster', status = "primary", solidHeader = TRUE,
         plotOutput('dt_plot_c')
       )
     ),
@@ -53,11 +59,30 @@ ui <- dashboardPage(
         sliderInput("k03Input","Number of Cluster:", min=1,max=10, value = c(5)),
         plotOutput("char01_plot")
       )
+    ),
+    fluidRow(
+      box(
+        title="Alternative Clustering Algorithm", status= "primary", solidHeader =TRUE, width=12, 
+        radioButtons("kmean_hclusInput","Choice of clustering algorithm:", choices = c('k-means','Hierarchical')),
+        conditionalPanel(
+          condition = "input.kmean_hclusInput=='k-means'",
+          sliderInput("k_meanInput", "Number of cluster:",min=1, max=10,
+                      value = c(5)),
+          selectInput("k_yesnoInput","Toggle labels",choices = c('no','yes'))
+        ),
+        conditionalPanel(
+          condition = "input.kmean_hclusInput=='Hierarchical'",
+          selectInput("hclusInput","Agglomeration Method:",choices = c("single","complete","average","ward.D"))
+        ),
+        plotOutput("alt_plot",height="600px")
+      )
     )
   )
 )
 #server---------------------------------------------------------------------------
 server <- function(input,output){
+#general------------------------------------------------------------------------
+#refer to dt_c at #2--
 #1--------------------------------------------------------------------------------
 k_c <- reactive({
   m1 <- count(data,forename) #count occurence of forename throughout the dataset
@@ -137,6 +162,17 @@ char01 <- reactive({
   big_data = do.call(rbind,datalist)
   return(big_data)
 })
+#3.2 Alt clustering-------------------------------------------------------------
+alt_k_clus <- reactive({
+  km01 <- kmeans(dt_c(),input$k_meanInput)
+  return(km01)
+})
+
+alt_h_clus <- reactive({
+  hc01 <- hclust(dist(dt_c()),method= input$hclusInput)
+  hcd01 <- as.dendrogram(hc01)
+  return(hcd01)
+})
 
   #Main Output---------------------------------------------------------------------
   output$k_cluster <- renderPlot({
@@ -177,8 +213,21 @@ char01 <- reactive({
   
   #3 Plot---------------------------------------------------------
   output$char01_plot <- renderPlot({
-    ggplot(char01(),aes(x=year,y=avg_popularity,group=cluster, colour= cluster))+geom_line()
+    ggplot(char01(),aes(x=year,y=avg_popularity,group=cluster, colour= cluster))+geom_line()+ggtitle(paste('Avg. Popularity w.r.t Year for',input$k03Input,'Cluster'))
   })
+  
+  output$alt_plot <- renderPlot({
+    if(input$kmean_hclusInput=='k-means'){
+      if(input$k_yesnoInput=='no'){
+        fviz_cluster(alt_k_clus(),dt_c(), geom='point',label.rectangle =TRUE, show.clust.cent=TRUE, mean.point.size=8)+ggtitle(paste('Plot for k-mean clustering with k=',input$k_meanInput))
+      }else{
+        fviz_cluster(alt_k_clus(),dt_c(), check_overlap=TRUE,label.rectangle =TRUE, show.clust.cent=TRUE, mean.point.size=8)+ggtitle(paste('Plot for k-mean clustering with k=',input$k_meanInput))
+      }
+    }else{
+      plot(alt_h_clus(),type='rectangle', ylab ='Height', ylim=c(0,6))
+    }
+  })
+  
 }
 #End
 #----------------------------------------------------------------------
