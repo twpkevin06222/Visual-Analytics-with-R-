@@ -170,7 +170,8 @@ char01 <- reactive({
       pam.result <- pam(dt_c(),input$k02Input)  
     }
     clusplot(pam.result, main='Scatterplot for Clustering')
-    df <- data.frame(pam.result$clustering)
+    pca.res <- prcomp(pam.result$data)
+    df <- data.frame(pca.res$x)
     if (length(s)) points(df[s, , drop = FALSE], pch = 19, cex = 2)
   })
   
