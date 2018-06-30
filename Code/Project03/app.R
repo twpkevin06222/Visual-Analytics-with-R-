@@ -7,6 +7,7 @@ library(formattable)
 library(plyr)
 library(dplyr)
 library(tidyr)
+library(reshape2)
 
 #read data
 data <- read_rds("2017_UN_votes.rds")
@@ -22,28 +23,22 @@ ui <- dashboardPage(
   dashboardBody(
     tabItems(
       tabItem(tabName='Summary',
-        titlePanel("First Assignment"),
         fluidRow(
-            title = 'Summary', status = "primary", solidHeader = TRUE,
-            DT::dataTableOutput('resolution')
-        ),
-        fluidRow(
-          title = 'No. of Resolutions Up for Voting per Year', status = "primary", solidHeader = TRUE,
-          plotOutput("reso_per_year")
-        ),
-        fluidRow(
-          plotOutput("yes_no_abstain")
-        ),
-        fluidRow(
-          plotOutput("res_type_per_year")
-        ),
-        fluidRow(
-          plotOutput("animous_per_year")
+          tabBox( 
+            height = '400px', width = '400px',
+            title = 'First Assignment',
+            tabPanel("Tab1", DT::dataTableOutput('resolution')),
+            tabPanel("Tab2", plotOutput("reso_per_year")),
+            tabPanel("Tab3", plotOutput("yes_no_abstain")),
+            tabPanel("Tab4", plotOutput("animous_per_year")),
+            tabPanel("Tab5", DT::dataTableOutput("all"))
+          )
         )
       )
     )
   )
 )
+
 #server---------------------------------------------------------------------------
 server <- function(input,output){
 # 1.1-------------------------------  
@@ -85,7 +80,6 @@ server <- function(input,output){
     abstain$vote <- NULL
     yes_no <- merge(yes,no,by='rcid')
     yes_no_abstain <- merge(yes_no,abstain,by='rcid')
-    View(yes_no_abstain)
     names(yes_no_abstain) <- c('rcid','yes','no','abstain')
     year <- count(data,rcid,year)
     year$n <- NULL
@@ -119,7 +113,6 @@ apy <- reactive({
   abstain$vote <- NULL
   yes_no <- merge(yes,no,by='rcid')
   yes_no_abstain <- merge(yes_no,abstain,by='rcid')
-  View(yes_no_abstain)
   names(yes_no_abstain) <- c('rcid','yes','no','abstain')
   year <- count(data,rcid,year)
   year$n <- NULL
@@ -147,7 +140,6 @@ all <- reactive({
   abstain$vote <- NULL
   yes_no <- merge(yes,no,by='rcid')
   yes_no_abstain <- merge(yes_no,abstain,by='rcid')
-  View(yes_no_abstain)
   names(yes_no_abstain) <- c('rcid','yes','no','abstain')
   year <- count(data,rcid,year)
   year$n <- NULL
@@ -157,15 +149,17 @@ all <- reactive({
   a1 <- aggregate(no+abstain~year,g1,sum)
   a2 <- merge(g1,a1,by='year')
   a2 <- a2[,-c(3,4)]
-  a2 <- a2[,-c(3,4)]
   names(a2) <- c('year','unanimous','non-unanimous')
+  a2$Total <- a2[,2]+a2[,3]
   data02 <- data[,-c(2:8)]
   k1 <- aggregate(.~rcid,data02,sum)
   year <- count(data,rcid,year)
   year$n <- NULL
   k2 <- merge(year,k1,by='rcid')
+  k3 <- aggregate(.~year,k2,sum)
+  k3$rcid <- NULL
   b1 <- merge(a2,k3,by='year')
-  b2 <- b1[!((a2$unanimous/a2$Total)<(2/3)),]
+  b2 <- b1[!((b1$unanimous/b1$Total)<(2/3)),]
   b2$Total <- NULL
   return(b2)
 })
@@ -193,6 +187,10 @@ all <- reactive({
   output$animous_per_year <- renderPlot({
     ggplot(apy(),aes(year,value,fill=variable))+geom_bar(stat='identity')+theme(axis.text.x= element_text(angle=90,hjust=1))+guides(fill=guide_legend(title='Animous Type'))+theme(axis.text=element_text(size=14),axis.title = element_text(size=18))+scale_x_continuous(breaks=scales::pretty_breaks(n=20))  
     })
+  
+  output$all <- DT::renderDataTable(
+    datatable(all())
+  )
 }
 #End
 #----------------------------------------------------------------------
